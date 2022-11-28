@@ -8,7 +8,7 @@ Still very much in progress, will be updating regularly.
 ## Currently working:
 
 - Search for jobs with given query
-- Filter ads for languages (technically every language supported but results are mostly Swedish/English) - language is added to `ad['language']`
+- Filter ads for languages (technically every language supported but results are mostly Swedish/English) - language is added to `ad.language`
 - Filter for ads that have an email address in them
 - Query only jobs that are probably open for remote work
 - write json results to file (can choose to keep different files for all the different filter stages or filter results to one file)
