@@ -300,12 +300,12 @@ async def main():
     client = JobGetClient()
     args = parse_args()
     client.set_args(args)
-    query = args['query']
-    lang = args['lang']
-    email = args['email']
-    remote = args['remote']
-    send = args['send']
-    write = args['write']
+    query = args.get('query')
+    lang = args.get('lang')
+    email = args.get('email')
+    remote = args.get('remote')
+    send = args.get('send')
+    write = args.get('write')
     if not query:
         raise ValueError("Query is required")
     await expected_total(client, query, remote)

@@ -98,14 +98,15 @@ class JobGetClient():
     async def exec(self) -> None:
         """Execute the query based on the current attributes .
         """
-        self.statucode = 1
+        self.status.code = 1
         if not self.params:
-            self.statucode = 3
-            self.errorappend(NoParameterFound("No parameters found"))
+            self.status.code = 3
+            self.errors.append(NoParameterFound("No parameters found"))
         headers = {'accept': 'application/json'}
+        self.params.offset = 0
         def __no_limit(q: SearchParams) -> Dict[str,Any]:
             q.limit = 0
-            return q.dict()
+            return q.dict(exclude_none=True)
         
         async with httpx.AsyncClient(headers=headers) as client:
             res_total = await client.get(self.url, params=__no_limit(self.params))
@@ -114,21 +115,25 @@ class JobGetClient():
             expecting = math.ceil(total / 100)
             self.status = ClientStatus(code=1, expecting=expecting, received=0)
             tasks: List = []
-            self.paramlimit = 100
+            self.params.limit = 100
             for i in range(expecting):
-                self.paramoffset = i*100
-                tasks.append(client.get(self.url,params=self.paramdict()))
-            res = asyncio.gather(*tasks, return_exceptions=True)
+                self.params.offset = i*100
+                tasks.append(client.get(self.url,params=self.params.dict(exclude_none=True)))
+            res = await asyncio.gather(*tasks, return_exceptions=True)
             json_res = []
-            async for r in await res:
+            for r in res:
                 if isinstance(r, Exception):
-                    self.errorappend(r)
-                    self.statuerrors += 1 if self.statuerrors else 1
+                    self.errors.append(r)
+                    self.status.errors += 1 if self.status.errors else 1
                 else:
                     json_res.append(r.json())
-                self.statureceived += 1 if self.statureceived else 1
-            self.response = QueryResponse(**json_res[0], hits=[*json_res[0]['hits'], *[r['hits'] for r in json_res[1:]]])
-        self.statucode = 0
+                self.status.received += 1 if self.status.received else 1
+            hits = []
+            for r in json_res:
+                hits.extend(r['hits'])
+            resp = {**json_res[0], 'hits': hits}
+            self.response = QueryResponse(**resp)
+        self.status.code = 0
         
 
     def set_params(
@@ -153,10 +158,10 @@ class JobGetClient():
                     self.history = ClientHistory(
                         params=self.params,
                     )
-                self.history.paramappend(self.params)
+                self.history.params.append(self.params)
             self.params = new_params
         except Exception as e:
-            self.errorappend(e)
+            self.errors.append(e)
 
     def set_args(
             self,
@@ -179,10 +184,10 @@ class JobGetClient():
                     self.history = ClientHistory(
                         args=[self.args],
                     )
-                self.history.argappend(self.args)
+                self.history.args.append(self.args)
             self.args = new_args
         except Exception as e:
-            self.errorappend(e)
+            self.errors.append(e)
     def __save(self, save: bool, param: Any | None = None) -> bool:
         return param is not None and ((self.save and save) or save)
     def detect_languages(self) -> None:
@@ -199,7 +204,7 @@ class JobGetClient():
         """
         if not self.args:
             raise NoArgsGiven("No args given")
-        if not self.arglang:
+        if not self.args.lang:
             raise InsufficientArgs("No languages defined")
         if not self.response:
             raise NoResponseFound("No response found")
@@ -215,17 +220,17 @@ class JobGetClient():
         NoResponseFound
             if no response is found in client
         """
-        self.statucode = 1
+        self.status.code = 1
         if not self.response:
-            self.statucode = 3
+            self.status.code = 3
             raise NoResponseFound("No response found")
         self.result = [(ad for ad in self.response.hits
-                           if ad.application_detailemail
+                           if ad.application_details.email
                            or ad.employer.email)]
-        self.statucode = 2
+        self.status.code = 2
     
     def clear_errors(self):
-        self.statucode = 0
+        self.status.code = 0
         self.errors = []
 
     def save_response(self, path: str) -> None:
