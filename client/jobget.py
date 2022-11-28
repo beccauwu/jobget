@@ -3,7 +3,7 @@ import httpx
 import requests
 import json
 import math
-import jobget.schemas as s
+from schemas import *
 from typing import Union, Literal, Dict, List, Any, ClassVar
 from pydantic import parse_obj_as
 
@@ -31,7 +31,7 @@ class InsufficientArgs(Exception):
 
 
 class JobGetClient():
-    """Handles requests to jobs API and dealing with them.
+    """Handles requests.s to jobs API and dealing with them.
 
         ...
 
@@ -56,12 +56,12 @@ class JobGetClient():
         ----------
         get : `() => None`
             execute query based on current attributes
-        set_params : `(params: s.SearchParams) => None`
+        set_params : `(params: SearchParams) => None`
             set search parameters
-        set_args : `(args: s.ClientArgs) => None`
+        set_args : `(args: ClientArgs) => None`
             set client arguments
         detect_languages `() => None`
-            detect languages defined in `args.lang` from response 
+            detect languages defined in `arglang` from response 
         save_response `(path: str) => None`
             save response to file
         
@@ -86,53 +86,49 @@ class JobGetClient():
             sets the API endpoint
         """
         self.url = url
-        self.response: Union[s.QueryResponse, None] = None
-        self.params: Union[s.SearchParams, None] = None
-        self.args: Union[s.Args, None] = None
-        self.history: Union[s.ClientHistory, None] = None
+        self.response: Union[QueryResponse, None] = None
+        self.params: Union[SearchParams, None] = None
+        self.args: Union[Args, None] = None
+        self.history: Union[ClientHistory, None] = None
         self.save: bool = save_by_default
-        self.status: s.ClientStatus = s.ClientStatus(code=0)
+        self.status: ClientStatus = ClientStatus(code=0)
         self.errors: List[Exception] = []
         self.session = requests.Session()
-        self.result: Union[List[s.Ad], None] = None
+        self.result: Union[List[Ad], None] = None
     async def exec(self) -> None:
         """Execute the query based on the current attributes .
         """
-        
+        self.statucode = 1
         if not self.params:
-            self.status.code = 3
-            raise NoParameterFound("No parameters found")
+            self.statucode = 3
+            self.errorappend(NoParameterFound("No parameters found"))
         headers = {'accept': 'application/json'}
-        def __no_limit(q: s.SearchParams) -> Dict[str,Any]:
+        def __no_limit(q: SearchParams) -> Dict[str,Any]:
             q.limit = 0
             return q.dict()
         
         async with httpx.AsyncClient(headers=headers) as client:
             res_total = await client.get(self.url, params=__no_limit(self.params))
             res_total.raise_for_status()
-            total = s.QueryResponse(**res_total.json()).total.value
+            total = QueryResponse(**res_total.json()).total.value
             expecting = math.ceil(total / 100)
-            self.status = s.ClientStatus(code=1, expecting=expecting, received=0)
+            self.status = ClientStatus(code=1, expecting=expecting, received=0)
             tasks: List = []
-            self.params.limit = 100
+            self.paramlimit = 100
             for i in range(expecting):
-                self.params.offset = i*100
-                tasks.append(client.get(self.url,params=self.params.dict()))
+                self.paramoffset = i*100
+                tasks.append(client.get(self.url,params=self.paramdict()))
             res = asyncio.gather(*tasks, return_exceptions=True)
             json_res = []
             async for r in await res:
                 if isinstance(r, Exception):
-                    self.errors.append(r)
-                    self.status.errors += 1 if self.status.errors else 1
+                    self.errorappend(r)
+                    self.statuerrors += 1 if self.statuerrors else 1
                 else:
                     json_res.append(r.json())
-                self.status.received += 1 if self.status.received else 1
-            self.response = s.QueryResponse(**json_res[0], hits=[*json_res[0]['hits'], *[r['hits'] for r in json_res[1:]]])
-        
-        
-        
-        self.status = 3
-          # check for http errors
+                self.statureceived += 1 if self.statureceived else 1
+            self.response = QueryResponse(**json_res[0], hits=[*json_res[0]['hits'], *[r['hits'] for r in json_res[1:]]])
+        self.statucode = 0
         
 
     def set_params(
@@ -151,16 +147,16 @@ class JobGetClient():
             whether to save to history, overrides default save behaviour
         """
         try:
-            new_params = parse_obj_as(s.SearchParams, params)
+            new_params = parse_obj_as(SearchParams, params)
             if self.__save(save, self.params):
                 if not self.history:
-                    self.history = s.ClientHistory(
+                    self.history = ClientHistory(
                         params=self.params,
                     )
-                self.history.params.append(self.params)
+                self.history.paramappend(self.params)
             self.params = new_params
         except Exception as e:
-            self.errors.append(e)
+            self.errorappend(e)
 
     def set_args(
             self,
@@ -177,16 +173,16 @@ class JobGetClient():
             whether to save to history, overrides default save behaviour
         """
         try:
-            new_args = parse_obj_as(s.Args, args)
+            new_args = parse_obj_as(Args, args)
             if self.__save(save, self.args):
                 if not self.history:
-                    self.history = s.ClientHistory(
+                    self.history = ClientHistory(
                         args=[self.args],
                     )
-                self.history.args.append(self.args)
+                self.history.argappend(self.args)
             self.args = new_args
         except Exception as e:
-            self.errors.append(e)
+            self.errorappend(e)
     def __save(self, save: bool, param: Any | None = None) -> bool:
         return param is not None and ((self.save and save) or save)
     def detect_languages(self) -> None:
@@ -203,7 +199,7 @@ class JobGetClient():
         """
         if not self.args:
             raise NoArgsGiven("No args given")
-        if not self.args.lang:
+        if not self.arglang:
             raise InsufficientArgs("No languages defined")
         if not self.response:
             raise NoResponseFound("No response found")
@@ -219,14 +215,18 @@ class JobGetClient():
         NoResponseFound
             if no response is found in client
         """
-        self.status.code = 1
+        self.statucode = 1
         if not self.response:
-            self.status.code = 3
+            self.statucode = 3
             raise NoResponseFound("No response found")
         self.result = [(ad for ad in self.response.hits
-                           if ad.application_details.email
+                           if ad.application_detailemail
                            or ad.employer.email)]
-        self.status.code = 0
+        self.statucode = 2
+    
+    def clear_errors(self):
+        self.statucode = 0
+        self.errors = []
 
     def save_response(self, path: str) -> None:
         """Save the response to a JSON file .

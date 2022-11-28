@@ -1,1 +1,1 @@
-import help as help
+from .help import print_all_opts

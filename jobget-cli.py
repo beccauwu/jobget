@@ -2,15 +2,16 @@ import getopt
 import json
 import math
 import sys
+import asyncio
 from datetime import datetime
 from io import open
-from typing import Dict, List, Callable
+from typing import Dict, List, Callable, Tuple, Union, Any
 
 from langdetect import detect
 from tqdm import tqdm
 
 from schemas import schemas
-from util.help import print_all_opts
+from util import print_all_opts
 from client import JobGetClient
 
 
@@ -80,8 +81,7 @@ def write_json(res:List[schemas.Ad], filename:str):
     with open(f"results/res_{filename}.json", "w+", encoding="utf-8") as results_file:
         json.dump(res_json, results_file, indent=4, ensure_ascii=False)
 
-async def expected_total(query: str, remote: bool) -> int:
-    client = JobGetClient()
+async def expected_total(client:JobGetClient, query:str, remote:bool) -> int:
     """Sends empty query to get expected total
 
     Args:
@@ -100,7 +100,7 @@ async def expected_total(query: str, remote: bool) -> int:
         if client.response:
             return client.response.total.value
 
-async def get_query(params: schemas.QueryParams) -> list[schemas.Ad]:
+async def get_query(client: JobGetClient) -> Tuple[List[schemas.Ad], Union[Exception, None]]:
     """Gets query 100 ads at a time (due to limit)
 
     Args:
@@ -109,14 +109,14 @@ async def get_query(params: schemas.QueryParams) -> list[schemas.Ad]:
     Returns:
         list[schemas.Ad]: Returned queries parsed to pydantic models
     """
-    client = JobGetClient()
-    print(f"searching for {params.q}...")
-    search_params = {"q": params.q}
-    client.set_params(search_params)
     await client.exec()
     while True:
-        if client.response:
-            return client.response.hits
+        if client.status.code == 1:
+            continue
+        if client.status.code == 2:
+            return client.response.hits, None
+        if client.status.code == 3:
+            return client.response.hits, client.errors[0]
 
 def parse_ads(ads: list[dict]) -> list[schemas.Ad]:
     """Parses ads to pydantic models
@@ -252,7 +252,7 @@ def filter_by_keywords(
             filtered_ads.append(ad)
     print(f"Found {len(filtered_ads)} ads")
     return filtered_ads
-def parse_args() -> schemas.Args:
+def parse_args() -> Dict[str, Any]:
     """Parse command line arguments
 
     Returns:
@@ -267,69 +267,78 @@ def parse_args() -> schemas.Args:
         print(err)
         print_all_opts()
         sys.exit(2)
-    parsed: schemas.Args = schemas.Args()
+    parsed = {}
     for o, a in opts:
         if o in ("-h", "--help"):
             print_all_opts()
             sys.exit(1)
         elif o in ("-q", "--query"):
-            parsed.query = a
+            parsed['query'] = a
         elif o in ("-l", "--lang"):
             if ',' in a:
-                parsed.lang = a.split(',')
+                parsed['lang'] = a.split(',')
             else:
-                parsed.lang = [a]
+                parsed['lang'] = [a]
         elif o in ("-e", "--email"):
-            parsed.email = True
+            parsed['email'] = True
         elif o in ("-r", "--remote"):
-            parsed.remote = True
+            parsed['remote'] = True
         elif o in ("-s", "--send"):
-            parsed.send = True
+            parsed['send'] = True
         elif o in ("-f", "--filter"):
             if ',' in a:
-                parsed.filter = a.split(',')
+                parsed['filter'] = a.split(',')
             else:
-                parsed.filter = [a]
+                parsed['filter'] = [a]
         elif o in ("-w", "--write"):
-            parsed.write = True
+            parsed['write'] = True
         else:
             assert False, "unhandled option"
     return parsed
 
-def main():
+async def main():
+    client = JobGetClient()
     args = parse_args()
-    query = args.query
-    lang = args.lang
-    email = args.email
-    remote = args.remote
-    send = args.send
-    write = args.write
+    client.set_args(args)
+    query = args['query']
+    lang = args['lang']
+    email = args['email']
+    remote = args['remote']
+    send = args['send']
+    write = args['write']
     if not query:
         raise ValueError("Query is required")
-    total = expected_total(query, remote)
-    params = schemas.QueryParams(
-        query=query,
-        lang=lang,
-        email=email,
-        remote=remote,
-        total=total)
-    response = get_query(params)
+    await expected_total(client, query, remote)
+    #params=args minus send, write
+    response, err = await get_query(client)
+    if err is not None:
+        print(str(err))
     if lang:
         if write:
-            lang_response = get_languages(response, lang)
-            write_json(lang_response, "languages")
+            await client.detect_languages(lang)
+            write_json(client.response.hits, "languages")
         else:
-            response = get_languages(response, lang)
+            await client.detect_languages(response, lang)
     if email:
+        await client.filter_emails()
         if write:
-            email_response = get_emails(response)
-            write_json(email_response, "emails")
+            if client.status.code == 2:
+                write_json(client.result, "emails")
+            elif client.result:
+                write_json(client.result, "emails")
+                err = client.errors[0]
+                if err:
+                    print(f"Error: {err}")
+                print(f"Status: {client.status.dict()}")
         else:
-            response = get_emails(response)
+            if client.result:
+                response = client.result
+            else:
+                print(f"Status: {client.status.dict()}")
     if send:
         send_emails(response)
     write_json(response, f"{query}_final")
     print("Done!")
 
 if __name__ == '__main__':
-    main()
+    asyncio.run(main())
