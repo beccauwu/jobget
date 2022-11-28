@@ -1,0 +1,97 @@
+#!/usr/bin/env bash
+
+function createvenv(){
+    echo "creating virtual environment..."
+    if $1; then
+        if python -m venv venv; then
+            echo "Virtual environment created"
+        else
+            echo "Failed to create virtual environment"
+            exit 1
+        fi
+    else
+        if python3 -m venv venv; then
+            echo "venv created"
+        else
+            echo "venv creation failed"
+            exit 1
+        fi
+    fi
+}
+function activatevenv(){
+    echo "activating venv..."
+    if [ -f venv/bin/activate ]; then
+        if source venv/bin/activate; then
+            echo "venv activated"
+        else
+            echo "venv activation failed"
+            exit 1
+        fi
+    else
+        if source venv/Scripts/activate; then
+            echo "venv activated"
+        else
+            echo "venv activation failed"
+            exit 1
+        fi
+    fi
+}
+function upgradepip(){
+    echo "upgrading pip..."
+    if $1; then
+        if python -m pip install --upgrade pip; then
+            echo "pip upgraded"
+        else
+            echo "pip upgrade failed"
+            exit 1
+        fi
+    else
+        if python3 -m pip3 install --upgrade pip; then
+            echo "pip upgraded"
+        else
+            echo "pip upgrade failed"
+            exit 1
+        fi
+    fi
+}
+function installrequirements(){
+    echo "installing requirements..."
+    if $1; then
+        if python -m pip install -r requirements.txt; then
+            echo "requirements installed"
+        else
+            echo "requirements installation failed"
+            exit 1
+        fi
+    else
+        if python3 -m pip3 install -r requirements.txt; then
+            echo "requirements installed"
+        else
+            echo "requirements installation failed"
+            exit 1
+        fi
+    fi
+}
+#check that python is installed
+if [ -x "$(command -v python3)" ]; then
+    echo "python3 is installed"
+    echo "creating venv"
+    createvenv
+    activatevenv
+    upgradepip
+    installrequirements
+    
+else
+    if [ -x "$(command -v python)" ]; then
+        echo "python is installed"
+        echo "creating venv"
+        createvenv y
+        activatevenv y
+        upgradepip y
+        installrequirements y
+    else
+        echo "python is not installed"
+        exit 1
+    fi
+
+fi

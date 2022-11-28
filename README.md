@@ -3,6 +3,7 @@
 </p>
 
 # About
+
 Python script for searching jobs in Sweden using the [JobTech](https://jobsearch.api.jobtechdev.se/) API
 
 Still very much in progress, will be updating regularly.
@@ -40,9 +41,49 @@ The code is messy atm but i'll work on tidying it up.
 I've made a client class in ./client which I'm working on, it's untested.
 The working functionality is all from jobget-cli.py which is the original app
 
-## Usage
+# Usage
 
-Run the cli tool with `python jobget-cli.py <options>`
+## Requirements
 
+For now you do need python installed to use the client
 
+## Procedure
 
+Steps 3&4 are optional but highly recommended to not clutter your OS python installation
+
+1. Clone this repo
+
+   * `git clone https://github.com/beccauwu/jobget.git`
+2. cd into the dir
+
+   * `cd jobget`
+3. Run the automated setup script 
+
+    * `source ./setup`
+        This will:
+        1. Create a virtual environment
+        2. Activate the virtual environment
+        3. Upgrade pip
+        4. Install dependencies
+4. Run the script
+
+   * `python jobget-cli.py <options>`
+
+```
+usage: jobget-cli.py [options]
+    options:
+
+    ---short-------long--------------description----
+    -h         | --help            | print this help
+    -q <query> | --query=<query>   | search for <query> (required)
+    -l <lang>  | --lang=<lang>     | search for <lang>  (sv, en)
+    -f <csv>   | --filter=<csv>    | filter results by <csv>
+    -e         | --email           | search for ads with email
+    -r         | --remote          | search for remote jobs
+    -s         | --send            | send applications to ads with email
+    -w         | --write           | write results from different stages to separate files
+```
+
+### Usage in your own code
+
+To use the client in your app,
