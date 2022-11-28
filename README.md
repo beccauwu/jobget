@@ -32,6 +32,13 @@ I'm working on creating pydantic models for everything to keep things typesafe
 
 ## Other
 
-The code is messy atm but i'll work on tidying it up
+The code is messy atm but i'll work on tidying it up.
+I've made a client class in ./client which I'm working on, it's untested.
+The working functionality is all from jobget-cli.py which is the original app
+
+## Usage
+
+Run the cli tool with `python jobget-cli.py <options>`
+
 
 
