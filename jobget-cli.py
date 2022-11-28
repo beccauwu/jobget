@@ -11,8 +11,8 @@ from langdetect import detect
 from tqdm import tqdm
 
 from schemas import schemas
-from util import print_all_opts
-from client import JobGetClient
+from src.util import print_all_opts
+from src.client import JobGetClient
 
 
 def get_languages(
@@ -53,7 +53,7 @@ def get_emails(q: List[schemas.Ad]) -> List[schemas.Ad]:
         q (List[schemas.Ad]): List of ads
 
     Returns:
-        List[schemas.Ad]: Filtered list of ads
+        List[schemas.Ad]: Filtered List of ads
     """
     res = []
     pbar= tqdm(total=len(q), desc=f"Filtering for ads with email")
@@ -70,7 +70,7 @@ def get_emails(q: List[schemas.Ad]) -> List[schemas.Ad]:
     return res
 
 def write_json(res:List[schemas.Ad], filename:str):
-    """Writes list of ads to json file
+    """Writes List of ads to json file
 
     Args:
         res (List[schemas.Ad]): Ads to write
@@ -107,7 +107,7 @@ async def get_query(client: JobGetClient) -> Tuple[List[schemas.Ad], Union[Excep
         params (schemas.QueryParams): Params for query
 
     Returns:
-        list[schemas.Ad]: Returned queries parsed to pydantic models
+        List[schemas.Ad]: Returned queries parsed to pydantic models
     """
     await client.exec()
     while True:
@@ -118,14 +118,14 @@ async def get_query(client: JobGetClient) -> Tuple[List[schemas.Ad], Union[Excep
         if client.status.code == 3:
             return client.response.hits, client.errors[0]
 
-def parse_ads(ads: list[dict]) -> list[schemas.Ad]:
+def parse_ads(ads: List[dict]) -> List[schemas.Ad]:
     """Parses ads to pydantic models
 
     Args:
-        ads (list[dict]): unparsed ads
+        ads (List[dict]): unparsed ads
 
     Returns:
-        list[Ad]: parsed ads
+        List[Ad]: parsed ads
     """
     from pydantic.error_wrappers import ValidationError
     pbar = tqdm(total=len(ads), desc="Parsing ads")
@@ -140,11 +140,11 @@ def parse_ads(ads: list[dict]) -> list[schemas.Ad]:
     pbar.close()
     return parsed_ads
 
-def build_html(ads: list[schemas.Ad]) -> str:
+def build_html(ads: List[schemas.Ad]) -> str:
     """Builds html to display results
     
     Args:
-        ads (list[schemas.Ad]): list of ads
+        ads (List[schemas.Ad]): List of ads
     """
     html = ""
     for ad in ads:
@@ -157,12 +157,12 @@ def build_html(ads: list[schemas.Ad]) -> str:
         """
     return html
 
-def send_emails(ads: list[schemas.Ad]):
+def send_emails(ads: List[schemas.Ad]):
     """Automatically sends emails to employers
     Attaches cv and cover letter in language of the ad
 
     Args:
-        ads (list[schemas.Ad]): Ads to send emails to
+        ads (List[schemas.Ad]): Ads to send emails to
     """
     import json
     import mimetypes
@@ -233,16 +233,16 @@ def send_emails(ads: list[schemas.Ad]):
     
 def filter_by_keywords(
     ads: List[schemas.Ad],
-    keywords: list[str]
+    keywords: List[str]
     ) -> List[schemas.Ad]:
     """Filter query based on keywords
 
     Args:
-        ads (List[schemas.Ad]): list of ads
-        keywords (list[str]): list of keywords
+        ads (List[schemas.Ad]): List of ads
+        keywords (List[str]): List of keywords
 
     Returns:
-        List[schemas.Ad]: filtered list of ads
+        List[schemas.Ad]: filtered List of ads
     """
     print("Filtering ads...")
     filtered_ads = []

@@ -3,7 +3,7 @@ import httpx
 import requests
 import json
 import math
-from schemas import *
+from ..schemas.schemas import *
 from typing import Union, Literal, Dict, List, Any, ClassVar
 from pydantic import parse_obj_as
 
