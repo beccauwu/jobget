@@ -1,3 +1,7 @@
+<p align="center">
+    <img src="assets/banner.png" height="200"/>
+</p>
+
 # About
 Python script for searching jobs in Sweden using the [JobTech](https://jobsearch.api.jobtechdev.se/) API
 
