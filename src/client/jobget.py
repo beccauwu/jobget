@@ -188,7 +188,7 @@ class JobGetClient():
             self.args = new_args
         except Exception as e:
             self.errors.append(e)
-    def __save(self, save: bool, param: Any | None = None) -> bool:
+    def __save(self, save: bool, param: Any = None) -> bool:
         return param is not None and ((self.save and save) or save)
     def detect_languages(self) -> None:
         """Detect languages based on the search query .

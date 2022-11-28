@@ -77,7 +77,7 @@ def print_all_opts():
                            /  \_|  |
                            \______/   \033[0m
                         
-    \033[1;36musage:\033[0;0m jobget.py \033[1;32m[options]\033[0m
+    \033[1;36musage:\033[0;0m jobget-cli.py \033[1;32m[options]\033[0m
     \033[1;36moptions:\033[0;0m
 
     \033[1;35m---short-------long--------------description----\033[0;0m

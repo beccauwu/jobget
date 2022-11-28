@@ -10,7 +10,7 @@ from typing import Dict, List, Callable, Tuple, Union, Any
 from langdetect import detect
 from tqdm import tqdm
 
-from schemas import schemas
+from src.schemas import schemas
 from src.util import print_all_opts
 from src.client import JobGetClient
 
