@@ -1,8 +1,9 @@
 """ Pydantic schemas for the app
 """
 from datetime import datetime
-from typing import Dict, List, Literal, Optional, Union, Callable
+from typing import Dict, List, Literal, Optional, Union, Callable, NamedTuple
 from pydantic import BaseModel
+from collections import namedtuple
 
 class Args(BaseModel):
     """Command line arguments"""
@@ -12,9 +13,9 @@ class Args(BaseModel):
     send: bool = False
     write: bool = False
 
-class Progress(BaseModel):
-    progressbar: Callable
-    label: Callable
+# class Progress(BaseModel):
+#     progressbar: Callable
+#     label: Callable
     
 class ApplicationContact(BaseModel):
     contact_type: Optional[str]
@@ -192,9 +193,36 @@ class ClientHistory(BaseModel):
     args: Optional[List[Args]]
     errors: Optional[List[str]]
 
+class Progress(NamedTuple):
+    received: int
+    total: int
+
+class ClientError(NamedTuple):
+    code: int
+    err: str
+
 class ClientStatus(BaseModel):
-    code: Literal[0,1,2,3]
-    message: Optional[str]
-    expecting: Optional[int]
-    received: Optional[int]
-    errors: Optional[int]
+    """Pydantic model for client status
+    
+    Attributes:
+    ----------
+    ok: `bool`
+        Returns True if no errors
+    message: `str | None`
+        Returns message if any
+    errors: `List[ClientError] | None`
+        Returns list of errors as namedtuples with code and err
+    progress:
+        Async function yielding completed responses if expecting multiple responses
+    
+    """
+    ok: bool
+    message: str
+    errors: List[ClientError]
+    progress: Progress
+
+
+class DataStatus(NamedTuple):
+    data: Optional[List[QueryResponse]]
+    status: ClientStatus
+    e: Optional[Exception]
