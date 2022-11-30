@@ -75,7 +75,6 @@ function installrequirements(){
 #check that python is installed
 if [ -x "$(command -v python3)" ]; then
     echo "python3 is installed"
-    echo "creating venv"
     createvenv
     activatevenv
     upgradepip
@@ -84,7 +83,6 @@ if [ -x "$(command -v python3)" ]; then
 else
     if [ -x "$(command -v python)" ]; then
         echo "python is installed"
-        echo "creating venv"
         createvenv y
         activatevenv y
         upgradepip y
