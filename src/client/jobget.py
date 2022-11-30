@@ -4,9 +4,8 @@ import requests
 import json
 import math
 from ..schemas.schemas import *
-from typing import Union, Literal, Dict, List, Any, ClassVar
+from typing import Union, Literal, Dict, List, Any, ClassVar, Tuple, AsyncGenerator
 from pydantic import parse_obj_as
-
 
 class NoResponseFound(Exception):
     """Response was not found
@@ -54,7 +53,7 @@ class JobGetClient():
 
         Methods
         ----------
-        get : `() => None`
+        exec : `() => Tuple[Union[QueryResponse, None], ClientStatus]`
             execute query based on current attributes
         set_params : `(params: SearchParams) => None`
             set search parameters
@@ -64,7 +63,7 @@ class JobGetClient():
             detect languages defined in `arglang` from response 
         save_response `(path: str) => None`
             save response to file
-        
+            
         Notes
         ----------
         Please don't set attributes directly, use set functions - the functions save history which setting attributes doesn't, and does additional formatting/validation
@@ -91,51 +90,91 @@ class JobGetClient():
         self.args: Union[Args, None] = None
         self.history: Union[ClientHistory, None] = None
         self.save: bool = save_by_default
-        self.status: ClientStatus = ClientStatus(code=0)
-        self.errors: List[Exception] = []
+        self.status: ClientStatus = ClientStatus(
+            ok = not self.status.errors,
+            message="No errors" if not self.status.errors else f"{self.status.errors} errors",
+            errors=[],
+            progress=Progress(0,0)
+        )
+        self.error: Union[Exception, None] = None
         self.session = requests.Session()
         self.result: Union[List[Ad], None] = None
-    async def exec(self) -> None:
+        self.in_progress = self.status.progress.received < self.status.progress.total
+        self.__http_error: Callable[[int,str], None] = lambda code, text: self.status.errors.append((code, text))
+    async def exec(self) -> DataStatus:
         """Execute the query based on the current attributes .
+        
+        Returns
+        ----------
+        data, status, e : `DataStatus`
+            data : `QueryResponse | None`
+                response returned from API
+            status : `ClientStatus`
+                status including exceptions and error codes
+            e : `Exception | None`
+                exception raised if any
+        
+        Usage
+        ----------
+        ``` python
+        #client initialised with args/params
+        data, status = await client.exec()
+        if status.ok:
+            #do stuff with data
+        elif data is None:
+            #handle no response
+        else:
+            for e in status.errors:
+                code, err = e
+                #handle error
+            #handle data
+        ```
+        
+        Note
+        ----------
+        Will not raise exceptions, 
+        instead will return them in e
+        errors in fetching data will be in status.errors
         """
-        self.status.code = 1
-        if not self.params:
-            self.status.code = 3
-            self.errors.append(NoParameterFound("No parameters found"))
-        headers = {'accept': 'application/json'}
-        self.params.offset = 0
-        def __no_limit(q: SearchParams) -> Dict[str,Any]:
-            q.limit = 0
-            return q.dict(exclude_none=True)
-        
-        async with httpx.AsyncClient(headers=headers) as client:
-            res_total = await client.get(self.url, params=__no_limit(self.params))
-            res_total.raise_for_status()
-            total = QueryResponse(**res_total.json()).total.value
-            expecting = math.ceil(total / 100)
-            self.status = ClientStatus(code=1, expecting=expecting, received=0)
-            tasks: List = []
-            self.params.limit = 100
-            for i in range(expecting):
-                self.params.offset = i*100
-                tasks.append(client.get(self.url,params=self.params.dict(exclude_none=True)))
-            res = await asyncio.gather(*tasks, return_exceptions=True)
-            json_res = []
-            for r in res:
-                if isinstance(r, Exception):
-                    self.errors.append(r)
-                    self.status.errors += 1 if self.status.errors else 1
-                else:
-                    json_res.append(r.json())
-                self.status.received += 1 if self.status.received else 1
-            hits = []
-            for r in json_res:
-                hits.extend(r['hits'])
-            resp = {**json_res[0], 'hits': hits}
-            self.response = QueryResponse(**resp)
-        self.status.code = 0
-        
-
+        try:
+            if not self.params:
+                self.error = NoParameterFound("No parameters were found")
+                return None, self.status, self.error
+            headers = {'accept': 'application/json'}
+            self.params.offset = 0
+            def __no_limit(q: SearchParams) -> Dict[str,Any]:
+                q.limit = 0
+                return q.dict(exclude_none=True)
+            
+            async with httpx.AsyncClient(headers=headers) as client:
+                res_total = await client.get(self.url, params=__no_limit(self.params))
+                res_total.raise_for_status()
+                total = QueryResponse(**res_total.json()).total.value
+                expecting = math.ceil(total / 100)
+                self.status.progress = Progress(0,expecting,)
+                tasks: List[asyncio.Task] = []
+                self.params.limit = 100
+                for i in range(expecting):
+                    self.params.offset = i*100
+                    tasks.append(asyncio.create_task(client.get(self.url, params=self.params.dict(exclude_none=True))))
+                res: List[httpx.Response] = await asyncio.gather(*tasks, return_exceptions=True)
+                json_res = []
+                for r in res:
+                    if r.status_code != 200:
+                        self.__http_error(r.status_code, r.text)
+                    else:
+                        json_res.append(r.json())
+                    self.status.progress.received += 1
+                hits = []
+                for r in json_res:
+                    hits.extend(r['hits'])
+                resp = {**json_res[0], 'hits': hits}
+                self.response = QueryResponse(**resp)
+            return self.response, self.status, None
+        except Exception as e:
+            self.error = e
+            return None, self.status, self.error
+    
     def set_params(
             self,
             params: Dict[str,Union[str, List[str], bool, int]],
@@ -161,7 +200,8 @@ class JobGetClient():
                 self.history.params.append(self.params)
             self.params = new_params
         except Exception as e:
-            self.errors.append(e)
+            self.status.exceptions.append(e)
+            self.status.code = 2
 
     def set_args(
             self,
@@ -187,7 +227,27 @@ class JobGetClient():
                 self.history.args.append(self.args)
             self.args = new_args
         except Exception as e:
-            self.errors.append(e)
+            self.status.exceptions.append(e)
+    def initiate(self, *,
+                 args: Dict[str,
+                            Union[str,
+                                  List[str], bool]] = {},
+                 params: Dict[str,
+                              Union[str,
+                                    List[str], bool, int]] = {}) -> None:
+        """Initiate the client with arguments and parameters .
+        
+        Shortcut for setting both arguments and parameters at once
+
+        Parameters
+        ----------
+        args : `Dict[str, Union[str, List[str], bool]]`
+            arguments to set
+        params : `Dict[str, Union[str, List[str], bool, int]]`
+            parameters to set
+        """
+        self.set_args(args)
+        self.set_params(params)
     def __save(self, save: bool, param: Any = None) -> bool:
         return param is not None and ((self.save and save) or save)
     def detect_languages(self) -> None:
